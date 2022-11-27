@@ -1,0 +1,77 @@
+#!/usr/bin/zsh
+# This allows to easily format output with all sorts of styles!
+
+emulate -LR zsh
+set -e
+
+# Below are defined touples that needed mostly for lscolours's sorting
+typeset -HUag fgs=(
+	default			$'\E[39m'
+
+	red			$'\E[31m'
+	lightred		$'\E[91m'
+	green			$'\E[32m'
+	lightgreen		$'\E[92m'
+	yellow			$'\E[33m'
+	lightyellow		$'\E[93m'
+	blue			$'\E[34m'
+	lightblue		$'\E[94m'
+	purple			$'\E[35m'
+	lightpurple		$'\E[95m'
+	cyan			$'\E[36m'
+	lightcyan		$'\E[96m'
+	white			$'\E[37m'
+	grey			$'\E[90m'
+	black			$'\E[30m'
+)
+
+typeset -HUag bgs=(
+	bg-default		$'\E[49m'
+
+	bg-red			$'\E[41m'
+	bg-lightred		$'\E[101m'
+	bg-green		$'\E[42m'
+	bg-lightgreen		$'\E[102m'
+	bg-yellow		$'\E[43m'
+	bg-lightyellow		$'\E[103m'
+	bg-blue			$'\E[44m'
+	bg-lightblue		$'\E[104m'
+	bg-purple		$'\E[45m'
+	bg-lightpurple		$'\E[105m'
+	bg-cyan			$'\E[46m'
+	bg-lightcyan		$'\E[106m'
+	bg-white		$'\E[47m'
+	bg-grey			$'\E[100m'
+	bg-black		$'\E[40m'
+)
+
+typeset -HUag styles=(
+	bold			$'\E[01m'
+	nobold			$'\E[22m'
+
+	italic			$'\E[03m'
+	noitalic		$'\E[23m'
+
+	underline		$'\E[04m'
+	nounderline		$'\E[24m'
+	
+	strike			$'\E[09m'
+	nostrike		$'\E[29m'
+
+	blink			$'\E[05m'
+	noblink			$'\E[25m'
+
+	reverse			$'\E[07m'
+	noreverse		$'\E[27m'
+
+	conceal			$'\E[08m'
+	noconceal		$'\E[28m'
+)
+
+# Associative array with everything for ease of use
+typeset -HUAg colours=(
+	reset			$'\E[00m'
+	${(kv)fgs}
+	${(kv)bgs}
+	${(kv)styles}
+)

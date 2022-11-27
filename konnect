@@ -1,0 +1,297 @@
+#!/usr/bin/zsh
+
+set -e
+
+autoload +X log; log
+autoload +X colours; colours
+autoload +X degnu; degnu
+
+readonly CMD=${${(%):-%N}:t}
+
+# Devices dictionary ([device-id]=device-name)
+typeset -A devices
+
+# Device id, chosen for communication
+typeset DEVICE
+
+typeset -rUA COMMAND_ALIASES=(
+	refresh         reload
+	reset		    reload
+	list-available	devices
+	list		    devices
+	ls		        devices
+	ll		        devices
+	l		        devices
+	ring		    find
+	ping-msg	    ping
+	share		    send
+	share-text	    clip
+	send-keys	    input
+    type            input
+	keys		    input
+	picture		    photo
+	pic		        photo
+)
+
+# List of commands that do require a connected device to operate
+typeset -rUa DEVICEFULL_COMMANDS=(find ping send clip input photo)
+
+
+function usage() {
+	cat << EOF
+Usage: $CMD [options] <command>
+
+A wrapper utility to operate on kdeconnect-cli in a more convenient way.
+
+Examples:
+  $CMD ping noticeme
+  $CMD -d myphone photo face.jpg
+  $CMD clip ohi mark
+
+Options:
+  -h, --help		-- Show available commands and options
+  -d, --device=NAME	-- Specify a device to communicate with
+  -f, --force		-- Enable file overwrite
+  -i, --inline		-- Strip newlines for input from stdin
+
+Commands:
+  help			-- Same as --help
+  reload		-- Search devices and re-establish connections
+  devices		-- List available devices
+  find			-- Ring a device to find it
+  ping [text]	-- Send a ping with an optional message
+  send [file]		-- Send a file or url
+  clip [text]		-- Send text to a clipboard
+  input [text]		-- Send input
+  photo [file]		-- Take a photo with a device and transfer it
+
+Command aliases:
+  reload		-- refresh, reset
+  devices		-- list-available, list, ls, ll, l
+  find			-- ring
+  ping			-- ping-msg
+  send			-- share
+  clip			-- share-text
+  input			-- send-keys, keys, type
+  photo			-- picture, pic
+EOF
+}
+
+# Exit with an error message
+function die() {
+	local CALLER_INDEX=3 # Make caller a parent function
+	err $@ 
+	exit 1
+}
+
+# Check if flag is provided (--help, --force, --inline)
+function ckopt() [[ -n ${(k)opts[$1]} ]]
+
+# Check if an argument to an option is provided (--device DEVICE)
+function ckarg() [[ -n $opts[$1] ]]
+
+# Check if a command can execute without a connected device
+function ckdevicefull() [[ $DEVICEFULL_COMMANDS =~ $1 ]]
+
+# Searches given device name or id in available devices and
+# returns 0 if found, returns 1 otherwise
+function check-and-set-device() {
+	debug "Checking device '$1' out of $#devices available"
+	local id name
+	for id name in ${(kv)devices}; do
+		# Check against both id and name for convenience
+		if [[ $1 == $id ]] || [[ $1 == $name ]]; then
+			DEVICE=$id
+			info "Explicitly using device '$name' ($id)"
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+function list-devices() {
+	local id name
+	for id name in ${(kv)devices}; do
+		echo "$name ($id)"
+	done
+}
+
+# Check if file exists and if it's not a directory
+# Remove file (not directory) if --force flag provided
+function check-and-resolve-file-presence() {
+	if [[ -d $1 ]]; then
+		die "'$1' is a directory"
+	elif [[ -f $1 ]]; then
+		if ckopt --force; then
+			rm $1
+		else
+			die "'$1' is present. Use -f or --force to overwrite"
+		fi
+	fi
+}
+
+function cli() {
+	kdeconnect-cli -d $DEVICE > /dev/null $@
+}
+
+function cli-reload() {
+	kdeconnect-cli --refresh > /dev/null
+}
+
+function cli-find() {
+	cli --ring
+}
+
+function cli-ping() {
+	if [[ -n $* ]]; then
+		cli --ping-msg "$*"
+	else
+		cli --ping
+	fi
+}
+
+function cli-send() {
+	if [[ -z $* ]] || [[ $* == - ]]; then
+		local tmpfile=$(mktemp /tmp/$CMD-XXXXXXX)
+		debug "Using tmp file '$tmpfile'"
+
+		cat < /dev/stdin > $tmpfile
+
+		if [[ ! -s $tmpfile ]]; then
+			die "stdin is empty"
+		fi
+
+		local mime=$(file --mime-type $tmpfile | awk '{ print $2 }')
+		local ext=$(grep $mime /etc/mime.types | awk '{ print $2 }')
+		ln -sf $tmpfile $tmpfile.$ext
+		cli --share $tmpfile.$ext
+	else
+		cli --share $@
+	fi
+}
+
+function cli-clip() {
+	if [[ -z $* ]] || [[ $* == - ]]; then
+		local buffer=$(cat < /dev/stdin)
+		cli --share-text $buffer
+	else
+		cli --share-text "$*"
+	fi
+}
+
+function cli-input() {
+	if [[ -z $* ]] || [[ $* == - ]]; then
+		# TODO: find a way to send special keys
+		while read -rksu0 -d '' char; do
+			if ckopt --inline; then
+				if [[ "$char" == $'\n' ]]; then
+					continue
+				fi
+			fi
+
+			cli --send-keys "$char"
+		done
+	else
+		cli --send-keys "$*"
+	fi
+}
+
+function cli-photo() {
+	if [[ -z $1 ]]; then
+		local filename=~/Downloads/KDEConnect/$devices[$DEVICE]/$(date +"%Y%m%d_%H%M%S").jpg
+		check-and-resolve-file-presence $filename
+		mkdir -p $filename:h
+		info "Photo is going to be saved as '$filename'"
+		cli --photo $filename
+	else
+		# Passing strings like 'photo.jpg' yields unpredictable results.
+		# It saves the file under $HOME directory (even with './photo.jpg').
+		# So to avoid such behaveour, 'realpath' is used to pass an absolute path.
+		local filename_absolute=$(realpath $1)
+		check-and-resolve-file-presence $filename_absolute
+		mkdir -p $filename_absolute:h
+		cli --photo $filename_absolute
+	fi
+}
+
+function cli-search-available-devices() {
+	local device id name
+	while read device; do
+		# Failsafe for newlines
+		if [[ -z $device ]] && continue
+
+		id=$(grep -oP '(?<=: ).*(?= \()' <<< $device)
+		name=$(grep -oP '(?<=- ).*(?=:)' <<< $device)
+		devices[$id]=$name
+	done <<< "$(kdeconnect-cli -a 2> /dev/null)"
+}
+
+if ! hash kdeconnect-cli 2> /dev/null; then
+	die "'kdeconnect-cli' is missing"
+fi
+
+# Support GNU-style options
+DEGNU_OPTIONS=$(degnu $@)
+argv=()
+while read line; do
+	if [[ -z $line ]] continue
+	argv+=("$line")
+done <<< $DEGNU_OPTIONS
+
+typeset opterr=false
+zparseopts -M -D -E -F -K -A opts \
+	h=-help -help \
+	o=-one-two -one-two \
+	d:=-device -device: \
+	f=-force -force \
+	i=-inline -inline \
+	|| opterr=true
+
+if $opterr; then
+	usage >&2
+	die
+fi
+
+if [[ $1 == -- ]] shift
+
+if (( $ARGC == 0 )) || ckopt --help || [[ $1 == help ]]; then
+	usage
+	exit 0
+fi
+
+# Resolve command alias
+if [[ -n $1 ]] 1=${COMMAND_ALIASES[$1]:-$1}
+
+if ckdevicefull $1; then
+	cli-search-available-devices
+
+	if (( $#devices == 0 )); then
+		die "No available devices"
+	fi
+
+	if ckarg --device; then
+		if ! check-and-set-device $opts[--device]; then
+			die "No such device '$opts[--device]'"
+		fi
+	elif (( $#devices == 1 )); then
+		DEVICE=${(k)devices}
+		info "Implicitly using device '${(v)devices}' ($DEVICE)"
+	else
+		err "Multiple devices were found and no device was specified"
+		list-devices >&2
+		die
+	fi
+fi
+
+case $1 in
+	reload) cli-reload;;
+	devices) cli-search-available-devices; list-devices;;
+	find) cli-find;;
+	ping) cli-ping ${@:2};;
+	send) cli-send ${@:2};;
+	clip) cli-clip ${@:2};;
+	input) cli-input ${@:2};;
+	photo) cli-photo ${@:2};;
+	*) usage >&2; err "Unrecognized command '$1'"; die;;
+esac

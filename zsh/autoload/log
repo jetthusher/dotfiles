@@ -1,0 +1,179 @@
+#!/usr/bin/zsh
+# Functions inspired by Arch Linux printing style. Order of functions indicates
+# their importantce level from most important (top) to least important
+# (bottom).
+
+emulate -LR zsh
+set -e
+
+if [[ -z $LOGLVL ]]; then
+	typeset -g LOGLVL=debug
+fi
+
+typeset -gUA loglvldict=(
+	none	-1
+	err	0
+	warn	1
+	msg	2
+	submsg	3
+	info	4
+	debug	5
+)
+
+# Get caller information
+function caller() {
+	if (( $ARGC > 1 )); then
+		echo "Usage: $0 [index]" >&2
+		return 1
+	fi
+	
+	local fltrace=$funcfiletrace[(${1:-1})]
+	local flname=${fltrace%:*}
+
+	local fntrace=$functrace[(${1:-1})]
+	local fnname=${fntrace%:*}
+	
+	if [[ $flname == $fnname ]]; then
+		flname=''
+	fi
+
+	echo $flname:t:$fntrace:t | sed 's/^://'
+}
+
+# Critical error occured, program cannot continue
+function err() {
+	local prefix="==> ERROR:" postfix flags
+	if [[ $__log_nonl == true ]]; then; flags=-n fi
+
+	if (( $ARGC > 0 )) ; then
+		local lvl=$loglvldict[err]
+		local paramlvl=$loglvldict[$LOGLVL]
+		if [[ -n $paramlvl ]] && (( $paramlvl < $lvl )); then
+			return 0
+		fi
+
+		prefix+=$(caller ${CALLER_INDEX:-2}):
+		prefix=$colours[red]$colours[bold]$prefix
+		prefix+=$colours[default]
+		postfix=$colours[reset]
+
+		echo $flags $prefix $@$postfix >&2
+	fi
+}
+
+# Same as 'err', but don't print newline
+function errl() {
+	local __log_nonl=true
+	err $@
+}
+
+# Error occured, but execution continues
+function warn() {
+	local prefix="==> WARNING:" postfix flags
+	if [[ $__log_nonl == true ]]; then; flags=-n; fi
+
+	if (( $ARGC > 0 )) ; then
+		local lvl=$loglvldict[warn]
+		local paramlvl=$loglvldict[$LOGLVL]
+		if [[ -n $paramlvl ]] && (( $paramlvl < $lvl )); then
+			return 0
+		fi
+
+		prefix+=$(caller ${CALLER_INDEX:-2}):
+		prefix=$colours[yellow]$colours[bold]$prefix
+		prefix+=$colours[default]
+		postfix=$colours[reset]
+
+		echo $flags $prefix $@$postfix >&2
+	fi
+}
+
+# Same as 'warn', but don't print newline
+function warnl() {
+	local __log_nonl=true
+	warn $@
+}
+
+# Important step of the program execution
+function msg() {
+	local prefix="==>" postfix flags
+	if [[ $__log_nonl == true ]]; then; flags=-n; fi
+
+	if (( $ARGC > 0 )) ; then
+		local lvl=$loglvldict[msg]
+		local paramlvl=$loglvldict[$LOGLVL]
+		if [[ -n $paramlvl ]] && (( $paramlvl < $lvl )); then
+			return 0
+		fi
+
+		prefix=$colours[green]$colours[bold]$prefix
+		prefix+=$colours[reset]
+		postfix=$colours[reset]
+
+		echo $flags $prefix $@$postfix
+	fi
+}
+
+# Same as 'msg', but don't print newline
+function msgl() {
+	local __log_nonl=true
+	msg $@
+}
+
+# Miscellaneous step of the program execution
+function submsg() {
+	local prefix="  ->" postfix
+
+	if (( $ARGC > 0 )); then
+		local lvl=$loglvldict[submsg]
+		local paramlvl=$loglvldict[$LOGLVL]
+		if [[ -n $paramlvl ]] && (( $paramlvl < $lvl )); then
+			return 0
+		fi
+
+		prefix=$colours[bold]$prefix
+		prefix+=$colours[reset]
+		postfix=$colours[reset]
+
+		echo $prefix $@$postfix
+	fi
+}
+
+# Execution trivia
+function info() {
+	local prefix="==> INFO:" postfix
+
+	if (( $ARGC > 0 )) ; then
+		local lvl=$loglvldict[info]
+		local paramlvl=$loglvldict[$LOGLVL]
+		if [[ -n $paramlvl ]] && (( $paramlvl < $lvl )); then
+			return 0
+		fi
+
+		prefix=$colours[blue]$colours[bold]$prefix
+		prefix+=$colours[reset]
+		postfix=$colours[reset]
+
+		echo $prefix $@$postfix
+	fi
+}
+
+# Debug messages
+function debug() {
+	local prefix="==> DEBUG:" postfix
+
+	if (( $ARGC > 0 )) ; then
+		local lvl=$loglvldict[debug]
+		local paramlvl=$loglvldict[$LOGLVL]
+		if [[ -n $paramlvl ]] && (( $paramlvl < $lvl )); then
+			return 0
+		fi
+
+		prefix+=$(caller ${CALLER_INDEX:-2}):
+		prefix=$colours[grey]$colours[bold]$prefix
+		prefix+=$colours[reset]$colours[grey]
+		postfix=$colours[reset]
+
+		echo $prefix $@$postfix >&2
+	fi
+}

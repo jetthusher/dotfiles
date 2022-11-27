@@ -1,0 +1,6 @@
+require("deps")
+require("core.options")
+require("core.diagnostics")
+require("core.colours")
+require("core.mapping")
+require("autocmds")

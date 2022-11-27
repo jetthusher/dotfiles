@@ -1,0 +1,30 @@
+#!/usr/bin/zsh
+# Intended for usage in scripts. Substitutes arguments like `--opt=val' to
+# `--opt val'.
+
+emulate -LR zsh
+set -e
+
+function degnu() {
+	local transformed=()
+	integer ti=1
+	local arg rs ls
+	for arg in $argv; do
+		if grep -qE -- '^--\S+?=' <<< $arg; then
+			ls=${arg%%=*}
+			rs=${arg#*=}
+
+			transformed[$ti]=$ls
+			ti+=1
+			transformed[$ti]=$rs
+		else
+			transformed[$ti]=$arg
+		fi
+
+		ti+=1
+	done
+
+	for arg in $transformed; do
+		echo $arg
+	done
+}

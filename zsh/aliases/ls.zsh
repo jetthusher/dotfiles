@@ -1,0 +1,6 @@
+alias ls='command ls -p --color=auto --hyperlink=auto --group-directories-first --quoting-style=shell'
+alias lsa='ls -A'
+alias lsh='lsa --ignore="[^.]*"'
+alias l='list'
+alias la='l -A'
+alias lh='la --ignore="[^.]*"'

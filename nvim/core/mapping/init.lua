@@ -1,0 +1,8 @@
+require("core.mapping.tweaks")
+require("core.mapping.core")
+require("core.mapping.windows")
+require("core.mapping.search")
+require("core.mapping.editor")
+require("core.mapping.diagnostics")
+require("core.mapping.code")
+require("core.mapping.files")

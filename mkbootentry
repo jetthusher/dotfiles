@@ -1,0 +1,11 @@
+#!/usr/bin/zsh
+
+set -e
+
+source /usr/local/etc/boot.conf
+
+efibootmgr --verbose --create \
+	--disk /dev/sdb --part 1 \
+	--label ${1:-$LABEL} \
+	--loader $LOADER \
+	--unicode "$KERNEL_PARAMETERS"

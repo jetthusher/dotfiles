@@ -1,0 +1,59 @@
+# Z Shell config entry point
+# 
+# Only used to load all other configs and plugins
+
+typeset -gUa plugins_to_load=(
+	zsh-autosuggestions
+	zsh-syntax-highlighting
+)
+
+typeset -gUa configs_to_load=(
+	# Essential stuff
+	init
+	prompt
+	tweaks/
+
+	# Core
+	options/
+	environment/
+	parameters/
+	named-directories
+	widgets/
+	bindings/
+	completion/
+	vcs
+
+	# User-helpers
+	aliases/
+	functions/
+	plugins/
+
+	# Make it cleaner
+	cleanup
+)
+
+# Before loading anything, load plugins so they can't overwrite my definitions
+typeset plug plugpath
+for plug in $plugins_to_load; do
+	plugpath=/usr/share/zsh/plugins/$plug/$plug.zsh
+	if [[ -f $plugpath ]]; then
+		source $plugpath
+	else
+		echo "error: no such plugin '$plug'" >&2
+	fi
+done; unset plug plugpath plugins_to_load
+
+# Load configs
+typeset cfg cfgpath innercfg
+for cfg in $configs_to_load; do
+	cfgpath=/usr/local/etc/zsh/$cfg
+	if [[ -f $cfgpath.zsh ]]; then
+		source $cfgpath.zsh
+	elif [[ -d $cfgpath ]]; then
+		for innercfg in $cfgpath/*.zsh; do
+			source $innercfg
+		done
+	else
+		echo "error: no such config or folder '$cfg'" >&2
+	fi
+done; unset cfg cfgpath innercfg configs_to_load

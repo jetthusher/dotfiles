@@ -1,0 +1,79 @@
+#!/usr/bin/zsh
+# Ask for user input (e.g. [Y/n/q])
+
+emulate -LR zsh
+set -e
+
+function ask() {
+	function __usage() {
+		cat << 'EOF'
+Usage: ask [options] <answers> [parameter]
+
+Ask for user input (e.g. [Y/n/q]) and assign answer to an optional parameter.
+
+Examples:
+  ask yn ANSWER
+  ask ynq
+  ask -fx ynaq
+
+Options:
+  -i, --ignore-case		- Make answer case-insensitive
+  -f, --fallback <ANSWER>	- Fallback answer
+  -h, --help			- Show available commands and options
+EOF
+		unfunction $0
+	}
+
+	local __err=false __echo __case=-i __help __fallback
+	zparseopts -M -D -E -F -K \
+		i=__case	-ignore-case=__case \
+		f:=__fallback	-fallback:=__fallback \
+		h=__help	-help=__help \
+		|| __err=true
+
+	if [[ -n $__help ]]; then
+		__usage
+		return 0
+	fi
+
+	if $__err || (( $ARGC == 0 || $ARGC > 2 )); then
+		__usage >&2
+		return 1
+	fi
+
+	unfunction __usage
+
+	if [[ -n $__fallback ]]; then
+		__fallback=$__fallback[2]
+	fi
+
+	local __char __reply __found=false
+	read __char
+	if [[ -z $__char ]]; then
+		if [[ -n $__fallback ]]; then
+			__found=true
+		fi
+
+		__char=$__fallback
+	else
+		__char=$__char[1]
+		while read -ku0 __reply; do
+			if grep ${__case:+-i} $__char <<< $__reply > /dev/null; then
+				__found=true
+				__char=$__reply
+				break
+			fi
+		done <<< $1
+	fi
+
+	if [[ -n $__char ]] && $__found; then
+		if [[ -n $2 ]]; then
+			eval "typeset -g $2=$__char"
+			return 0
+		else
+			echo $__char
+		fi
+	else
+		return 1
+	fi
+}

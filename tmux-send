@@ -1,0 +1,14 @@
+#!/usr/bin/zsh
+
+set -e
+
+if [[ -n $TMUX ]] function () {
+	local keyseq=$1
+	local cmd_name=`tmux display-message -p '#{pane_current_command}'`
+	local intercept_cmds=(vim nvim zsh)
+	if [[ "$intercept_cmds" =~ $cmd_name ]]; then
+		tmux send-keys $keyseq
+	else
+		return 1
+	fi
+} $@
